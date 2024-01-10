@@ -1,0 +1,57 @@
+#!/bin/sh
+
+# Change this value to your Jira project prefix
+jiraProjectName="PRJID"
+
+echo "Prepare commit message hook"
+
+# Matches the branch names like:
+#   * PRJID-35-branch-name
+#   * feature/PRJID-35-branch-name
+#   * Bugfix/PRJID-35-branch-name
+branchPrefixPattern="^([a-zA-Z]+/)?($jiraProjectName-[0-9]+)"
+
+# Matches commit messages like:
+#   * PRJID-35 - commit message
+commitMessagePrefixPattern="^($jiraProjectName-[0-9]+)[[:space:]]-[[:space:]]"
+
+commitMessageFile=$1
+commitSource=$2
+sha1=$3
+
+# For test purposes we want to specify the value of $branchName explicitly
+if [[ ! -z $4 ]]; then
+  branchName=$4
+else
+  branchName=`git rev-parse --abbrev-ref HEAD 2>/dev/null`
+fi
+
+originalCommitMessage=`cat "$commitMessageFile" 2>/dev/null`
+
+if [[ "$branchName" =~ $branchPrefixPattern ]]; then
+    jiraId="${BASH_REMATCH[2]}"
+    echo "Jira id from the branch name: $jiraId"
+fi
+
+if [[ -z "$jiraId" ]]; then
+    echo "The branch '$branchName' does not contain JiraId"
+    exit 0
+fi
+
+if [[ "$originalCommitMessage" =~ $commitMessagePrefixPattern ]]; then
+    jiraIdInOriginalCommitMessage="${BASH_REMATCH[1]}"
+fi
+
+if [[ "$jiraIdInOriginalCommitMessage" == "$jiraId" ]]; then
+    echo "Current commit message already contains correct JiraId"
+    exit 0
+fi
+
+if [[ -z "$branchName" ]]; then
+    echo "Branch name is empty"
+    exit 0
+fi
+
+echo "Add JiraId $jiraId to the commit message"
+echo -n "$jiraId - " > "$commitMessageFile"
+echo "$originalCommitMessage" >> "$commitMessageFile"
